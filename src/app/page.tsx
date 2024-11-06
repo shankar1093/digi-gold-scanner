@@ -12,6 +12,10 @@ interface VerificationResult {
   certificate?: any; // You might want to type this more specifically based on your certificate structure
 }
 
+interface ScanResult {
+  rawValue: string;
+}
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -73,16 +77,15 @@ const verifyRedemptionQR = async (qrCode: string): Promise<VerificationResult> =
 }
 
 function App() {
-  const [result, setResult] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<VerificationResult | null>(null);
 
-  const handleScan = async (result: any) => {
-    if (result?.[0]?.rawValue) {
-      setResult(result[0].rawValue);
+  const handleScan = async (scanResult: ScanResult[]) => {
+    if (scanResult?.[0]?.rawValue) {
       try {
-        const verification = await verifyRedemptionQR(result[0].rawValue);
+        const verification = await verifyRedemptionQR(scanResult[0].rawValue);
         setVerificationStatus(verification);
-      } catch (error) {
+      } catch (err: unknown) {
+        console.error('Scan error:', err);
         setVerificationStatus({ isValid: false, error: 'Failed to verify QR code' });
       }
     }
