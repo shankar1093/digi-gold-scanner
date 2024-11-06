@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/header';
 import Footer from './components/footer';
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { Scanner } from '@yudiel/react-qr-scanner';
 
 interface GoldCertificate {
@@ -23,14 +23,23 @@ interface ScanResult {
 }
 
 function App() {
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<VerificationResult | null>(null);
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  useEffect(() => {
+    // Initialize Supabase client only on the client side
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    setSupabase(supabaseClient);
+  }, []);
 
   const verifyRedemptionQR = async (qrCode: string): Promise<VerificationResult> => {
+    if (!supabase) {
+      return { isValid: false, error: 'Database connection not initialized' };
+    }
+
     try {
       const qrData = JSON.parse(qrCode);
 
