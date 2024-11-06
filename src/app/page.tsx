@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import logo from './logo.svg';
+import React, { useState } from 'react';
 import Header from './components/header';
 import Footer from './components/footer';
 import { createClient } from '@supabase/supabase-js'
@@ -75,12 +74,24 @@ const verifyRedemptionQR = async (qrCode: string): Promise<VerificationResult> =
 
 function App() {
   const [result, setResult] = useState<string | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<VerificationResult | null>(null);
+
+  const handleScan = async (result: any) => {
+    if (result?.[0]?.rawValue) {
+      setResult(result[0].rawValue);
+      try {
+        const verification = await verifyRedemptionQR(result[0].rawValue);
+        setVerificationStatus(verification);
+      } catch (error) {
+        setVerificationStatus({ isValid: false, error: 'Failed to verify QR code' });
+      }
+    }
+  };
 
   return (
     <div className="App">
       <Header />
-      <div className="fixed top-1/4 left-1/2 transform -translate-x-1/2 w-full px-4 
-                        md:w-1/3 lg:w-1/4">
+      <div className="fixed top-1/4 left-1/2 transform -translate-x-1/2 w-full px-4 md:w-1/3 lg:w-1/4">
         <Scanner
           styles={{
             container: {
@@ -88,12 +99,15 @@ function App() {
               height: '350px',
             }
           }}
-          onScan={(result) => {
-            if (result?.[0]?.rawValue) {
-              setResult(result[0].rawValue)
-            }
-          }} />
-        {result && <p className="mt-4 text-center"> Scanned value: {result} </p>}
+          onScan={handleScan}
+        />
+        {verificationStatus && (
+          <div className={`mt-4 text-center ${verificationStatus.isValid ? 'text-green-600' : 'text-red-600'}`}>
+            {verificationStatus.isValid 
+              ? 'Certificate verified successfully!' 
+              : `Verification failed: ${verificationStatus.error}`}
+          </div>
+        )}
       </div>
       <Footer />
     </div>
