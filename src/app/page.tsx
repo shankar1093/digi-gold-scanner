@@ -1,101 +1,103 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useEffect, useState } from 'react';
+import logo from './logo.svg';
+import Header from './components/header';
+import Footer from './components/footer';
+import { createClient } from '@supabase/supabase-js'
+import { Scanner } from '@yudiel/react-qr-scanner';
+
+interface VerificationResult {
+  isValid: boolean;
+  error?: string;
+  certificate?: any; // You might want to type this more specifically based on your certificate structure
+}
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+const verifyRedemptionQR = async (qrCode: string): Promise<VerificationResult> => {
+  try {
+    const qrData = JSON.parse(qrCode);
+
+    // Verify signature
+    const dataToVerify = JSON.stringify({ ...qrData, signature: undefined });
+    const expectedSignature = btoa(encodeURIComponent(dataToVerify + process.env.SECRET_KEY!));
+
+    if(qrData.signature !== expectedSignature) {
+      return { isValid: false, error: 'Invalid signature' };
+    }
+
+    // Check expiry
+    if (Date.now() > qrData.expiryTimestamp) {
+      return { isValid: false, error: 'QR code expired' };
+    }
+
+    // Check if nonce was used
+    const { data: nonceRecord } = await supabase
+      .from('RedemptionNonce')
+      .select('*')
+      .eq('nonce', qrData.nonce)
+      .single();
+
+    if (!nonceRecord || nonceRecord.used) {
+      return { isValid: false, error: 'Invalid or used QR code' };
+    }
+
+    const { data: certificate } = await supabase
+      .from('gold_certificate')
+      .select()
+      .eq('id', qrData.certificateId)
+      .eq('status', 'active')
+      .single();
+
+    if (!certificate) {
+      return { isValid: false, error: 'Certificate not found or already redeemed' };
+    }
+
+    // Mark nonce as used
+    await supabase
+      .from('redemption_nonce')
+      .update({ used: true })
+      .eq('nonce', qrData.nonce);
+
+    return {
+      isValid: true,
+      certificate
+    };
+  } catch (error) {
+    console.error('QR Verification error:', error);
+    return { isValid: false, error: 'Invalid QR code format' };
+  }
+}
+
+function App() {
+  const [result, setResult] = useState<string | null>(null);
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+    <div className="App">
+      <Header />
+      <div className="fixed top-1/4 left-1/2 transform -translate-x-1/2 w-full px-4 
+                        md:w-1/3 lg:w-1/4">
+        <Scanner
+          styles={{
+            container: {
+              width: '100%',
+              height: '350px',
+            }
+          }}
+          onScan={(result) => {
+            if (result?.[0]?.rawValue) {
+              setResult(result[0].rawValue)
+            }
+          }} />
+        {result && <p className="mt-4 text-center"> Scanned value: {result} </p>}
+      </div>
+      <Footer />
     </div>
   );
 }
+
+export default App;
