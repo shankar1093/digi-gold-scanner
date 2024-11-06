@@ -22,68 +22,68 @@ interface ScanResult {
   rawValue: string;
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-const verifyRedemptionQR = async (qrCode: string): Promise<VerificationResult> => {
-  try {
-    const qrData = JSON.parse(qrCode);
-
-    // Verify signature
-    const dataToVerify = JSON.stringify({ ...qrData, signature: undefined });
-    const expectedSignature = btoa(encodeURIComponent(dataToVerify + process.env.SECRET_KEY!));
-
-    if(qrData.signature !== expectedSignature) {
-      return { isValid: false, error: 'Invalid signature' };
-    }
-
-    // Check expiry
-    if (Date.now() > qrData.expiryTimestamp) {
-      return { isValid: false, error: 'QR code expired' };
-    }
-
-    // Check if nonce was used
-    const { data: nonceRecord } = await supabase
-      .from('RedemptionNonce')
-      .select('*')
-      .eq('nonce', qrData.nonce)
-      .single();
-
-    if (!nonceRecord || nonceRecord.used) {
-      return { isValid: false, error: 'Invalid or used QR code' };
-    }
-
-    const { data: certificate } = await supabase
-      .from('gold_certificate')
-      .select()
-      .eq('id', qrData.certificateId)
-      .eq('status', 'active')
-      .single();
-
-    if (!certificate) {
-      return { isValid: false, error: 'Certificate not found or already redeemed' };
-    }
-
-    // Mark nonce as used
-    await supabase
-      .from('redemption_nonce')
-      .update({ used: true })
-      .eq('nonce', qrData.nonce);
-
-    return {
-      isValid: true,
-      certificate
-    };
-  } catch (error) {
-    console.error('QR Verification error:', error);
-    return { isValid: false, error: 'Invalid QR code format' };
-  }
-}
-
 function App() {
   const [verificationStatus, setVerificationStatus] = useState<VerificationResult | null>(null);
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const verifyRedemptionQR = async (qrCode: string): Promise<VerificationResult> => {
+    try {
+      const qrData = JSON.parse(qrCode);
+
+      // Verify signature
+      const dataToVerify = JSON.stringify({ ...qrData, signature: undefined });
+      const expectedSignature = btoa(encodeURIComponent(dataToVerify + process.env.SECRET_KEY!));
+
+      if(qrData.signature !== expectedSignature) {
+        return { isValid: false, error: 'Invalid signature' };
+      }
+
+      // Check expiry
+      if (Date.now() > qrData.expiryTimestamp) {
+        return { isValid: false, error: 'QR code expired' };
+      }
+
+      // Check if nonce was used
+      const { data: nonceRecord } = await supabase
+        .from('RedemptionNonce')
+        .select('*')
+        .eq('nonce', qrData.nonce)
+        .single();
+
+      if (!nonceRecord || nonceRecord.used) {
+        return { isValid: false, error: 'Invalid or used QR code' };
+      }
+
+      const { data: certificate } = await supabase
+        .from('gold_certificate')
+        .select()
+        .eq('id', qrData.certificateId)
+        .eq('status', 'active')
+        .single();
+
+      if (!certificate) {
+        return { isValid: false, error: 'Certificate not found or already redeemed' };
+      }
+
+      // Mark nonce as used
+      await supabase
+        .from('redemption_nonce')
+        .update({ used: true })
+        .eq('nonce', qrData.nonce);
+
+      return {
+        isValid: true,
+        certificate
+      };
+    } catch (error) {
+      console.error('QR Verification error:', error);
+      return { isValid: false, error: 'Invalid QR code format' };
+    }
+  }
 
   const handleScan = async (scanResult: ScanResult[]) => {
     if (scanResult?.[0]?.rawValue) {
