@@ -25,6 +25,7 @@ interface ScanResult {
 function App() {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<VerificationResult | null>(null);
+  const [scanResult, setScanResult] = useState<string | null>(null);
 
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -104,8 +105,10 @@ function App() {
 
   const handleScan = async (scanResult: ScanResult[]) => {
     if (scanResult?.[0]?.rawValue) {
+      const rawValue = scanResult[0].rawValue;
+      setScanResult(rawValue);
       try {
-        const verification = await verifyRedemptionQR(scanResult[0].rawValue);
+        const verification = await verifyRedemptionQR(rawValue);
         setVerificationStatus(verification);
       } catch (err: unknown) {
         console.error('Scan error:', err);
@@ -127,6 +130,16 @@ function App() {
           }}
           onScan={handleScan}
         />
+        
+        {/* Scan Result Display */}
+        {scanResult && (
+          <div className="mt-4 p-3 bg-gray-100 rounded-lg text-sm">
+            <div className="font-semibold mb-1">Scanned Data:</div>
+            <div className="break-all">{scanResult}</div>
+          </div>
+        )}
+
+        {/* Verification Status Display */}
         {verificationStatus && (
           <div className={`mt-4 text-center ${verificationStatus.isValid ? 'text-green-600' : 'text-red-600'}`}>
             {verificationStatus.isValid 
