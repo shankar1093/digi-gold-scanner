@@ -6,10 +6,16 @@ import Footer from './components/footer';
 import { createClient } from '@supabase/supabase-js'
 import { Scanner } from '@yudiel/react-qr-scanner';
 
+interface GoldCertificate {
+  id: string;
+  status: string;
+  // Add other certificate fields that you expect from your database
+}
+
 interface VerificationResult {
   isValid: boolean;
   error?: string;
-  certificate?: any; // You might want to type this more specifically based on your certificate structure
+  certificate?: GoldCertificate;
 }
 
 interface ScanResult {
