@@ -87,18 +87,37 @@ function App() {
         return { isValid: false, error: 'Certificate not found or already redeemed' };
       }
 
-
+      console.log('Processing redemption for certificate:', qrData.certificateId);
+      console.log('Using nonce:', qrData.nonce);
+      
       const { data, error } = await supabase.rpc('process_redemption', {
         p_certificate_id: qrData.certificateId,
         p_nonce: qrData.nonce
       });
+
+      console.log('Redemption response:', data);
 
       if (error) {
         console.error('Redemption error:', error);
         return { isValid: false, error: 'Failed to process redemption' };
       }
 
-      console.log('Redemption result:', data);
+      // Double-check the certificate status
+      const { data: updatedCertificate, error: checkError } = await supabase
+        .from('GoldCertificate')
+        .select('status')
+        .eq('id', qrData.certificateId)
+        .single();
+
+      console.log('Final certificate check:', {
+        status: updatedCertificate?.status,
+        error: checkError
+      });
+
+      if (updatedCertificate?.status !== 'REDEEMED') {
+        console.error('Certificate status not updated correctly');
+        return { isValid: false, error: 'Failed to update certificate status' };
+      }
 
       return {
         isValid: true,
