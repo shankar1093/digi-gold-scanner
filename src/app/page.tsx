@@ -87,10 +87,6 @@ function App() {
         return { isValid: false, error: 'Certificate not found or already redeemed' };
       }
 
-      console.log('Processing redemption with:', {
-        p_certificate_id: qrData.certificateId,
-        p_nonce: qrData.nonce
-      });
 
       const { data, error } = await supabase.rpc('process_redemption', {
         p_certificate_id: qrData.certificateId,
