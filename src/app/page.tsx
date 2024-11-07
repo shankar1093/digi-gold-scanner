@@ -9,7 +9,6 @@ import { Scanner } from '@yudiel/react-qr-scanner';
 interface GoldCertificate {
   id: string;
   status: string;
-  // Add other certificate fields that you expect from your database
 }
 
 interface VerificationResult {
@@ -22,6 +21,14 @@ interface ScanResult {
   rawValue: string;
 }
 
+interface QRData {
+  certificateId: string;
+  userId: string;
+  amount: number;
+  expiryTimestamp: number;
+  nonce: string;
+}
+
 function App() {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<VerificationResult | null>(null);
@@ -30,7 +37,6 @@ function App() {
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
     if (!supabaseUrl || !supabaseKey) {
       console.error('Supabase environment variables are missing');
       return;
@@ -50,48 +56,53 @@ function App() {
     }
 
     try {
-      const qrData = JSON.parse(qrCode);
+      const qrData: QRData = JSON.parse(qrCode);
 
-      // Verify signature
-      const dataToVerify = JSON.stringify({ ...qrData, signature: undefined });
-      const expectedSignature = btoa(encodeURIComponent(dataToVerify + process.env.SECRET_KEY!));
-
-      if(qrData.signature !== expectedSignature) {
-        return { isValid: false, error: 'Invalid signature' };
-      }
-
-      // Check expiry
       if (Date.now() > qrData.expiryTimestamp) {
         return { isValid: false, error: 'QR code expired' };
       }
 
-      // Check if nonce was used
-      const { data: nonceRecord } = await supabase
+      const { data: nonceRecord, error: nonceError } = await supabase
         .from('RedemptionNonce')
         .select('*')
         .eq('nonce', qrData.nonce)
         .single();
+
+      console.log('QR Data Nonce:', qrData.nonce);
+      console.log('Nonce Record:', nonceRecord);
+      console.log('Nonce Error:', nonceError);
 
       if (!nonceRecord || nonceRecord.used) {
         return { isValid: false, error: 'Invalid or used QR code' };
       }
 
       const { data: certificate } = await supabase
-        .from('gold_certificate')
+        .from('GoldCertificate')
         .select()
         .eq('id', qrData.certificateId)
-        .eq('status', 'active')
+        .eq('status', 'ACTIVE')
         .single();
 
       if (!certificate) {
         return { isValid: false, error: 'Certificate not found or already redeemed' };
       }
 
-      // Mark nonce as used
-      await supabase
-        .from('redemption_nonce')
-        .update({ used: true })
-        .eq('nonce', qrData.nonce);
+      console.log('Processing redemption with:', {
+        p_certificate_id: qrData.certificateId,
+        p_nonce: qrData.nonce
+      });
+
+      const { data, error } = await supabase.rpc('process_redemption', {
+        p_certificate_id: qrData.certificateId,
+        p_nonce: qrData.nonce
+      });
+
+      if (error) {
+        console.error('Redemption error:', error);
+        return { isValid: false, error: 'Failed to process redemption' };
+      }
+
+      console.log('Redemption result:', data);
 
       return {
         isValid: true,
@@ -101,7 +112,7 @@ function App() {
       console.error('QR Verification error:', error);
       return { isValid: false, error: 'Invalid QR code format' };
     }
-  }
+  } 
 
   const handleScan = async (scanResult: ScanResult[]) => {
     if (scanResult?.[0]?.rawValue) {
@@ -131,15 +142,13 @@ function App() {
           onScan={handleScan}
         />
         
-        {/* Scan Result Display */}
         {scanResult && (
           <div className="mt-4 p-3 bg-gray-100 rounded-lg text-sm">
-            <div className="font-semibold mb-1">Scanned Data:</div>
-            <div className="break-all">{scanResult}</div>
+            <div className="font-semibold mb-1 text-black">Scanned Data:</div>
+            <div className="break-all text-black">{scanResult}</div>
           </div>
         )}
 
-        {/* Verification Status Display */}
         {verificationStatus && (
           <div className={`mt-4 text-center ${verificationStatus.isValid ? 'text-green-600' : 'text-red-600'}`}>
             {verificationStatus.isValid 
